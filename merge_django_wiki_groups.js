@@ -20,9 +20,11 @@
  */
 
 var fs = require('fs'),
+    ld = require("damerau-levenshtein"), // npm i damerau-levenshtein
     json_django = JSON.parse(fs.readFileSync('users.json')),
     json_wiki = JSON.parse(fs.readFileSync('wiki_users.json')),
-    json_groups = JSON.parse(fs.readFileSync('groups_users.json'));
+    json_groups = JSON.parse(fs.readFileSync('groups_users.json')),
+    json_wikigroups = [];
 
 json_django.sort(function (a,b){
     var _a = (a.fields.email.length > b.fields.email.length? b.fields.email.toLowerCase().split(): a.fields.email.toLowerCase().split()),
@@ -55,9 +57,10 @@ json_django.forEach(function(el){
     for(var js in lists){
         var j = lists[js],
             dj_mail = el.fields.email,
-            idxx = -1, i = 0, el_j;
+            idxx = -1, i = 0, el_j, lev;
         while (idxx < 0 && i < j.length) {
-            if (dj_mail === j[i].email) {
+            lev = ld(dj_mail || "", j[i].email || "");
+            if(lev.similarity > 0.90){
                 idxx = i;
                 el_j = j[idxx];
                 for (var key in el_j){
@@ -70,7 +73,30 @@ json_django.forEach(function(el){
     }
 });
 
+
+json_groups.forEach(function(el){
+    var j = json_wiki,
+        dj_mail = el.email,
+        idxx = -1, i = 0, el_j, lev;
+    while (idxx < 0 && i < j.length) {
+        lev = ld(dj_mail || "", j[i].email || "");
+        if (lev.similarity > 0.90) {
+            console.log(dj_mail + " " + j[i].email + " " + lev.similarity);
+            idxx = i;
+            el_j = j[idxx];
+            for (var key in el_j){
+                el['wiki_' + key] = el_j[key];
+            }
+            json_wikigroups.push(JSON.parse(JSON.stringify(el))); // deep copy
+            j.splice(idxx, 1);
+        }
+        i++;
+    }
+});
+
 // debug output
 json_django_leftover = json_django.filter(function(el){return !el.fields.wiki_email && !el.fields.groups_email;});
-json_groups.forEach(function(el){console.log(el.email);});
-json_django_leftover.forEach(function(el){console.log(el.fields.email);});
+json_groups_leftover = json_groups.filter(function(el){return !el.wiki_email;});
+//json_wikigroups.forEach(function(el){console.log(el);});
+json_groups_leftover.forEach(function(el){console.log(el);});
+//json_django_leftover.forEach(function(el){console.log(el.fields.email);});
